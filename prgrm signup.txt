@@ -1,0 +1,140 @@
+package com.example.signuploginrealtime;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+
+import android.content.Intent;
+import android.os.Bundle;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.Query;
+import com.google.firebase.database.ValueEventListener;
+
+public class LoginActivity extends AppCompatActivity {
+
+    EditText loginUsername, loginPassword;
+    Button loginButton;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_login);
+
+        loginUsername = findViewById(R.id.login_username);
+        loginPassword = findViewById(R.id.login_password);
+        loginButton = findViewById(R.id.login_button);
+
+        loginButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (!validateUsername() || !validatePassword()){
+                    return;
+                }
+                checkUser();
+            }
+        });
+    }
+
+    public boolean validateUsername() {
+        String val = loginUsername.getText().toString().trim();
+        if (val.isEmpty()) {
+            loginUsername.setError("Username cannot be empty");
+            return false;
+        }
+        loginUsername.setError(null);
+        return true;
+    }
+
+    public boolean validatePassword() {
+        String val = loginPassword.getText().toString().trim();
+        if (val.isEmpty()) {
+            loginPassword.setError("Password cannot be empty");
+            return false;
+        }
+        loginPassword.setError(null);
+        return true;
+    }
+
+    public void checkUser() {
+        final String userUsername = loginUsername.getText().toString().trim();
+        final String userPassword = loginPassword.getText().toString().trim();
+
+        // Référence pour les utilisateurs
+        DatabaseReference usersReference = FirebaseDatabase.getInstance().getReference("users");
+        Query checkUserDatabase = usersReference.orderByChild("username").equalTo(userUsername);
+
+        checkUserDatabase.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (snapshot.exists()) {
+                    // L'utilisateur existe dans le chemin "users"
+                    DataSnapshot userSnapshot = snapshot.getChildren().iterator().next(); // Get first child
+                    sendDataToPageUser(userSnapshot);
+                } else {
+                    // L'utilisateur n'existe pas dans le chemin "users", vérifier dans le chemin "admins"
+                    DatabaseReference adminsReference = FirebaseDatabase.getInstance().getReference("admins");
+                    Query checkAdminDatabase = adminsReference.orderByChild("username").equalTo(userUsername);
+
+                    checkAdminDatabase.addListenerForSingleValueEvent(new ValueEventListener() {
+                        @Override
+                        public void onDataChange(@NonNull DataSnapshot snapshot) {
+                            if (snapshot.exists()) {
+                                // L'utilisateur existe dans le chemin "admins"
+                                DataSnapshot adminSnapshot = snapshot.getChildren().iterator().next(); // Get first child
+                                sendDataToSignupActivity(adminSnapshot);
+                            } else {
+                                // L'utilisateur n'existe pas dans le chemin "admins" non plus
+                                loginUsername.setError("User does not exist");
+                                loginUsername.requestFocus();
+                            }
+                        }
+
+                        @Override
+                        public void onCancelled(@NonNull DatabaseError error) {
+                            // Gestion des erreurs de base de données
+                        }
+                    });
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                // Gestion des erreurs de base de données
+            }
+        });
+    }
+
+    private void sendDataToSignupActivity(DataSnapshot snapshot) {
+        String nameFromDB = snapshot.child("name").getValue(String.class);
+        String emailFromDB = snapshot.child("email").getValue(String.class);
+        String usernameFromDB = snapshot.child("username").getValue(String.class);
+        String passwordFromDB = snapshot.child("password").getValue(String.class);
+
+        Intent intent = new Intent(LoginActivity.this, SignupActivity.class);
+        intent.putExtra("name", nameFromDB);
+        intent.putExtra("email", emailFromDB);
+        intent.putExtra("username", usernameFromDB);
+        intent.putExtra("password", passwordFromDB);
+        startActivity(intent);
+    }
+
+    private void sendDataToPageUser(DataSnapshot snapshot) {
+        String nameFromDB = snapshot.child("name").getValue(String.class);
+        String emailFromDB = snapshot.child("email").getValue(String.class);
+        String usernameFromDB = snapshot.child("username").getValue(String.class);
+        String passwordFromDB = snapshot.child("password").getValue(String.class);
+
+        Intent intent = new Intent(LoginActivity.this, PageUser.class);
+        intent.putExtra("name", nameFromDB);
+        intent.putExtra("email", emailFromDB);
+        intent.putExtra("username", usernameFromDB);
+        intent.putExtra("password", passwordFromDB);
+        startActivity(intent);
+    }
+}
